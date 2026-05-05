@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import yaml
 
 
 class CalibrationFormatError(ValueError):
@@ -39,6 +40,7 @@ class Calibration:
     n_images_used: int | None = None
     n_images_total: int | None = None
     square_size: float | None = None
+    undistortion: Mapping[str, Any] = field(default_factory=dict)
     rectification: Mapping[str, Any] = field(default_factory=dict)
     raw: Mapping[str, Any] = field(default_factory=dict, repr=False)
 
@@ -52,7 +54,7 @@ class Calibration:
 
     @classmethod
     def from_file(cls, path: str | Path) -> "Calibration":
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        payload = _load_mapping_file(path)
         return cls.from_dict(payload)
 
     @classmethod
@@ -70,6 +72,9 @@ class Calibration:
         camera_model = _first_string(candidates, "camera_model", "model")
 
         rectification = _first_mapping(candidates, "rectification") or {}
+        undistortion = _first_mapping(candidates, "undistortion") or rectification
+        if not camera_model:
+            camera_model = _string_from_mapping(undistortion, "model")
         if not camera_model:
             camera_model = _string_from_mapping(rectification, "model")
         camera_model = _normalize_camera_model(camera_model)
@@ -90,9 +95,34 @@ class Calibration:
             n_images_used=n_images_used if n_images_used is not None else _int_from_mapping(summary, "n_images_used"),
             n_images_total=n_images_total if n_images_total is not None else _int_from_mapping(summary, "n_images_total"),
             square_size=_first_float(candidates, "square_size"),
+            undistortion=dict(undistortion),
             rectification=dict(rectification),
             raw=payload,
         )
+
+    def to_core_calibration(self) -> dict[str, Any]:
+        """Return the calibration dictionary expected by `camcal-core`."""
+
+        payload: dict[str, Any] = {
+            "camera_model": self.camera_model,
+            "pattern_type": self.pattern_type,
+            "K": self.K.copy(),
+            "D": self.D.copy(),
+            "rms_error": self.rms_error,
+            "image_size": self.image_size,
+            "n_images_used": self.n_images_used,
+            "n_images_total": self.n_images_total,
+            "square_size": self.square_size,
+        }
+        return {key: value for key, value in payload.items() if value is not None}
+
+    @property
+    def balance(self) -> float:
+        return _first_config_float(self.undistortion, self.rectification, key="balance", default=0.5)
+
+    @property
+    def fov_scale(self) -> float:
+        return _first_config_float(self.undistortion, self.rectification, key="fov_scale", default=1.0)
 
 
 def load_calibration(path: str | Path) -> Calibration:
@@ -111,7 +141,7 @@ def ensure_calibration(value: Calibration | Mapping[str, Any] | str | Path) -> C
 
 def _candidate_payloads(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     candidates: list[Mapping[str, Any]] = [payload]
-    for key in ("calibration", "payload", "result"):
+    for key in ("calibration", "payload", "result", "intrinsics", "quality"):
         nested = payload.get(key)
         if isinstance(nested, Mapping):
             candidates.append(nested)
@@ -121,6 +151,24 @@ def _candidate_payloads(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         if isinstance(intrinsics, Mapping):
             candidates.append(intrinsics)
     return candidates
+
+
+def _load_mapping_file(path: str | Path) -> Mapping[str, Any]:
+    source = Path(path)
+    content = source.read_text(encoding="utf-8")
+    suffix = source.suffix.lower()
+
+    if suffix in {".yaml", ".yml"}:
+        payload = yaml.safe_load(content)
+    else:
+        try:
+            payload = json.loads(content)
+        except json.JSONDecodeError:
+            payload = yaml.safe_load(content)
+
+    if not isinstance(payload, Mapping):
+        raise CalibrationFormatError(f"Calibration file must contain an object: {source}")
+    return payload
 
 
 def _first_matrix(candidates: list[Mapping[str, Any]]) -> np.ndarray:
@@ -169,6 +217,11 @@ def _first_image_size(candidates: list[Mapping[str, Any]]) -> tuple[int, int] | 
             return width, height
 
         size = candidate.get("image_size")
+        parsed = _parse_image_size(size)
+        if parsed:
+            return parsed
+
+        size = candidate.get("sensor_size")
         parsed = _parse_image_size(size)
         if parsed:
             return parsed
@@ -255,3 +308,11 @@ def _int_from_mapping(mapping: Mapping[str, Any], key: str) -> int | None:
     except (TypeError, ValueError):
         return None
     return parsed if parsed > 0 else None
+
+
+def _first_config_float(*mappings: Mapping[str, Any], key: str, default: float) -> float:
+    for mapping in mappings:
+        value = _float_from_mapping(mapping, key)
+        if value is not None:
+            return value
+    return default

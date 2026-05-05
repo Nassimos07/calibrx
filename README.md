@@ -1,8 +1,11 @@
 # CamCal SDK
 
-Python SDK for applying CamCal calibration exports locally. Users can download
-`calibration.json` or `rectified_calibration.json` from CamCal, install this
-package, and reproduce the same undistortion results in their own scripts.
+Python SDK for applying CamCal calibration exports locally. Users download
+`calibration.json`, `calibration.yaml`, `rectified_calibration.json`, or
+`rectified_calibration.yaml` from CamCal and call one undistortion function.
+
+The SDK delegates undistortion to `camcal-core`, the same engine used by the
+CamCal backend, so local results follow the platform implementation.
 
 ## Install
 
@@ -13,32 +16,28 @@ pip install camcal-sdk
 For local development:
 
 ```bash
+python -m pip install -e ../camcal-core
 python -m pip install -e ".[dev]"
 ```
 
 ## Python usage
 
 ```python
-from camcal_sdk import load_calibration, undistort_file
-
-calibration = load_calibration("calibration.json")
-
-undistort_file(
-    "input.jpg",
-    calibration,
-    "output.jpg",
-    balance=0.5,
-)
-```
-
-For rectified exports, the saved rectification values are used by default:
-
-```python
 from camcal_sdk import undistort_file
 
 undistort_file(
     "input.jpg",
-    "rectified_calibration.json",
+    "calibration.json",
+    "output.jpg",
+)
+```
+
+The export decides the model, pattern type, balance, and fisheye FOV scale:
+
+```python
+undistort_file(
+    "input.jpg",
+    "rectified_calibration.yaml",
     "rectified_output.jpg",
 )
 ```
@@ -80,11 +79,13 @@ camcal-undistort ./frames calibration.json ./undistorted --glob "*.jpg"
 The SDK supports the CamCal app exports:
 
 - `calibration.json`
+- `calibration.yaml`
 - `rectified_calibration.json`
+- `rectified_calibration.yaml`
 
-It also accepts the deeper raw calibration payload shape produced by
-`camcal-core`, as long as it contains `intrinsics.camera_matrix` and
-`intrinsics.distortion_coefficients`.
+It also accepts the older flat export shape and the deeper raw calibration
+payload shape produced by `camcal-core`, as long as camera intrinsics are
+present.
 
 Supported camera models:
 

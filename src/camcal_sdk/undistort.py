@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -15,45 +16,43 @@ class UndistortResult:
     image: np.ndarray
     camera_matrix: np.ndarray
     roi: tuple[int, int, int, int] | None = None
+    output_path: Path | None = None
 
 
 def undistort(
-    image: np.ndarray,
-    calibration: Calibration | Mapping | str | Path,
+    image: np.ndarray | str | Path,
+    calibration: Calibration | Mapping[str, Any] | str | Path,
+    output_path: str | Path | None = None,
     *,
     balance: float | None = None,
     fov_scale: float | None = None,
 ) -> UndistortResult:
-    """Apply a CamCal calibration export to an image.
+    """Apply a CamCal export using the same `camcal-core` functions as the app.
 
-    The implementation mirrors the backend/core OpenCV calls used by CamCal:
-    pinhole models use `cv2.getOptimalNewCameraMatrix` + `cv2.undistort`,
-    while fisheye models use `cv2.fisheye` rectification maps.
+    `image` can be either an OpenCV/Numpy image array or a file path. When
+    `output_path` is provided, the undistorted image is also written to disk.
+    The camera model, pattern type, balance, and fisheye FOV scale are resolved
+    from the calibration export unless the caller explicitly overrides them.
     """
 
-    if image is None or not hasattr(image, "shape"):
-        raise ValueError("image must be a numpy array loaded by OpenCV or an equivalent array.")
-
     parsed = ensure_calibration(calibration)
-    balance = _resolve_balance(parsed, balance)
-    fov_scale = _resolve_fov_scale(parsed, fov_scale)
+    source_image = _load_image(image)
+    resolved_balance = parsed.balance if balance is None else float(balance)
+    resolved_fov_scale = parsed.fov_scale if fov_scale is None else float(fov_scale)
 
-    if not (0.0 <= balance <= 1.0):
-        raise ValueError(f"balance must be in [0, 1], got {balance}.")
-    if fov_scale <= 0:
-        raise ValueError(f"fov_scale must be > 0, got {fov_scale}.")
-
-    if parsed.camera_model == "fisheye":
-        return _undistort_fisheye(image, parsed, balance=balance, fov_scale=fov_scale)
-    if parsed.camera_model in {"pinhole", "pinhole_wide"}:
-        return _undistort_pinhole(image, parsed, balance=balance)
-
-    raise ValueError(f"Unsupported camera_model {parsed.camera_model!r}.")
+    output, new_camera_matrix, roi = _run_core_undistort(
+        source_image,
+        parsed,
+        balance=resolved_balance,
+        fov_scale=resolved_fov_scale,
+    )
+    saved_path = _write_image(output, output_path) if output_path is not None else None
+    return UndistortResult(output, new_camera_matrix, roi, saved_path)
 
 
 def undistort_image(
-    image: np.ndarray,
-    calibration: Calibration | Mapping | str | Path,
+    image: np.ndarray | str | Path,
+    calibration: Calibration | Mapping[str, Any] | str | Path,
     *,
     balance: float | None = None,
     fov_scale: float | None = None,
@@ -70,7 +69,7 @@ def undistort_image(
 
 def undistort_file(
     image_path: str | Path,
-    calibration: Calibration | Mapping | str | Path,
+    calibration: Calibration | Mapping[str, Any] | str | Path,
     output_path: str | Path,
     *,
     balance: float | None = None,
@@ -78,120 +77,109 @@ def undistort_file(
 ) -> Path:
     """Load, undistort, and save one image file."""
 
-    source = Path(image_path)
-    destination = Path(output_path)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-
-    image = cv2.imread(str(source))
-    if image is None:
-        raise ValueError(f"Failed to read image: {source}")
-
     result = undistort(
-        image,
+        image_path,
         calibration,
+        output_path,
         balance=balance,
         fov_scale=fov_scale,
     )
-    ok = cv2.imwrite(str(destination), result.image)
-    if not ok:
-        raise ValueError(f"Failed to write image: {destination}")
-    return destination
+    if result.output_path is None:
+        raise ValueError("The undistorted image was not written.")
+    return result.output_path
 
 
-def _undistort_pinhole(image: np.ndarray, calibration: Calibration, *, balance: float) -> UndistortResult:
-    height, width = image.shape[:2]
-    image_size = (width, height)
-
-    new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(
-        calibration.K,
-        calibration.D,
-        image_size,
-        balance,
-        image_size,
-    )
-    output = cv2.undistort(image, calibration.K, calibration.D, None, new_camera_matrix)
-    return UndistortResult(output, new_camera_matrix, tuple(int(v) for v in roi))
-
-
-def _undistort_fisheye(
+def _run_core_undistort(
     image: np.ndarray,
     calibration: Calibration,
     *,
     balance: float,
     fov_scale: float,
-) -> UndistortResult:
-    height, width = image.shape[:2]
-    current_size = (width, height)
-    K = calibration.K
-    D = calibration.D
+) -> tuple[np.ndarray, np.ndarray, tuple[int, int, int, int] | None]:
+    core_calibration = calibration.to_core_calibration()
+    pattern_type = (calibration.pattern_type or "chessboard").lower()
 
-    if D.shape != (4, 1):
-        raise ValueError(f"Fisheye calibration expects 4 distortion coefficients, got shape {D.shape}.")
+    if calibration.camera_model == "fisheye":
+        if "image_size" not in core_calibration:
+            height, width = image.shape[:2]
+            core_calibration["image_size"] = (width, height)
 
-    if calibration.image_size and current_size != calibration.image_size:
-        K = _scale_camera_matrix(K, calibration.image_size, current_size)
+        if pattern_type == "charuco":
+            from camcalib.fisheye.charuco.undistort import undistort_fisheye_charuco_image
 
-    new_camera_matrix = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(
-        K,
-        D,
-        current_size,
-        np.eye(3),
-        balance=balance,
-        fov_scale=fov_scale,
-    )
-    map_x, map_y = cv2.fisheye.initUndistortRectifyMap(
-        K,
-        D,
-        np.eye(3),
-        new_camera_matrix,
-        current_size,
-        cv2.CV_16SC2,
-    )
-    output = cv2.remap(
-        image,
-        map_x,
-        map_y,
-        interpolation=cv2.INTER_LINEAR,
-        borderMode=cv2.BORDER_CONSTANT,
-    )
-    return UndistortResult(output, new_camera_matrix)
+            output, new_camera_matrix = undistort_fisheye_charuco_image(
+                image,
+                core_calibration,
+                balance=balance,
+                fov_scale=fov_scale,
+            )
+        else:
+            from camcalib.fisheye.chessboard.undistort import undistort_fisheye_chessboard_image
+
+            output, new_camera_matrix = undistort_fisheye_chessboard_image(
+                image,
+                core_calibration,
+                balance=balance,
+                fov_scale=fov_scale,
+            )
+        return output, new_camera_matrix, None
+
+    if calibration.camera_model == "pinhole":
+        if pattern_type == "charuco":
+            from camcalib.pinhole.charuco.undistort import undistort_pinhole_charuco_image
+
+            output, new_camera_matrix, roi = undistort_pinhole_charuco_image(
+                image,
+                core_calibration,
+                balance=balance,
+            )
+        else:
+            from camcalib.pinhole.chessboard.undistort import undistort_pinhole_chessboard_image
+
+            output, new_camera_matrix, roi = undistort_pinhole_chessboard_image(
+                image,
+                core_calibration,
+                balance=balance,
+            )
+        return output, new_camera_matrix, tuple(int(value) for value in roi)
+
+    if calibration.camera_model == "pinhole_wide":
+        if pattern_type == "charuco":
+            from camcalib.pinhole_wide.charuco.undistort import undistort_pinhole_charuco_image
+
+            output, new_camera_matrix, roi = undistort_pinhole_charuco_image(
+                image,
+                core_calibration,
+                balance=balance,
+            )
+        else:
+            from camcalib.pinhole_wide.chessboard.undistort import undistort_pinhole_chessboard_image
+
+            output, new_camera_matrix, roi = undistort_pinhole_chessboard_image(
+                image,
+                core_calibration,
+                balance=balance,
+            )
+        return output, new_camera_matrix, tuple(int(value) for value in roi)
+
+    raise ValueError(f"Unsupported camera_model {calibration.camera_model!r}.")
 
 
-def _scale_camera_matrix(
-    K: np.ndarray,
-    from_size: tuple[int, int],
-    to_size: tuple[int, int],
-) -> np.ndarray:
-    from_w, from_h = from_size
-    to_w, to_h = to_size
-    from_aspect = from_w / from_h
-    to_aspect = to_w / to_h
+def _load_image(image: np.ndarray | str | Path) -> np.ndarray:
+    if isinstance(image, np.ndarray):
+        return image
 
-    if abs(from_aspect - to_aspect) > 0.01:
-        raise ValueError(
-            f"Cannot undistort {to_w}x{to_h} with a calibration done at "
-            f"{from_w}x{from_h}; aspect ratios differ."
-        )
-
-    scale_x = to_w / from_w
-    scale_y = to_h / from_h
-    scaled = K.copy()
-    scaled[0, 0] *= scale_x
-    scaled[1, 1] *= scale_y
-    scaled[0, 2] *= scale_x
-    scaled[1, 2] *= scale_y
-    return scaled
+    source = Path(image)
+    loaded = cv2.imread(str(source))
+    if loaded is None:
+        raise ValueError(f"Failed to read image: {source}")
+    return loaded
 
 
-def _resolve_balance(calibration: Calibration, value: float | None) -> float:
-    if value is not None:
-        return float(value)
-    rectification_value = calibration.rectification.get("balance")
-    return float(rectification_value) if rectification_value is not None else 0.5
-
-
-def _resolve_fov_scale(calibration: Calibration, value: float | None) -> float:
-    if value is not None:
-        return float(value)
-    rectification_value = calibration.rectification.get("fov_scale")
-    return float(rectification_value) if rectification_value is not None else 1.0
+def _write_image(image: np.ndarray, output_path: str | Path) -> Path:
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    ok = cv2.imwrite(str(destination), image)
+    if not ok:
+        raise ValueError(f"Failed to write image: {destination}")
+    return destination

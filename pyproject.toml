@@ -34,8 +34,8 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules"
 ]
 dependencies = [
-  "numpy>=1.24",
-  "opencv-python-headless>=4.8"
+  "camcal-core>=0.1.0",
+  "PyYAML>=6.0"
 ]
 
 [project.optional-dependencies]

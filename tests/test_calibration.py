@@ -7,20 +7,27 @@ from camcal_sdk import Calibration, CalibrationFormatError
 def test_loads_app_export_shape():
     calibration = Calibration.from_dict(
         {
+            "format": "camcal.calibration",
+            "version": 1,
             "camera_model": "pinhole_wide",
-            "image_width": 1920,
-            "image_height": 1080,
-            "rms_error": 0.368,
-            "n_images_used": 56,
-            "n_images_total": 60,
-            "camera_matrix": [[1000, 0, 960], [0, 1000, 540], [0, 0, 1]],
-            "distortion_coefficients": [0.1, -0.02, 0.001, 0.002, 0.0],
+            "image_size": [1920, 1080],
+            "intrinsics": {
+                "camera_matrix": [[1000, 0, 960], [0, 1000, 540], [0, 0, 1]],
+                "distortion_coefficients": [0.1, -0.02, 0.001, 0.002, 0.0],
+            },
+            "undistortion": {"balance": 0.25, "fov_scale": 1.0},
+            "quality": {
+                "rms_error": 0.368,
+                "n_images_used": 56,
+                "n_images_total": 60,
+            },
         }
     )
 
     assert calibration.camera_model == "pinhole_wide"
     assert calibration.image_size == (1920, 1080)
     assert calibration.rms_error == pytest.approx(0.368)
+    assert calibration.balance == pytest.approx(0.25)
     assert calibration.K.shape == (3, 3)
     assert calibration.D.shape == (5, 1)
 
