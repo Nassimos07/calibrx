@@ -22,6 +22,9 @@ _MODEL_ALIASES = {
     "fisheye": "fisheye",
 }
 
+_PINHOLE_DISTORTION_ORDER = ("k1", "k2", "p1", "p2", "k3", "k4", "k5", "k6", "s1", "s2", "s3", "s4", "tx", "ty")
+_FISHEYE_DISTORTION_ORDER = ("k1", "k2", "k3", "k4")
+
 
 @dataclass(frozen=True)
 class Calibration:
@@ -176,12 +179,15 @@ def _first_matrix(candidates: list[Mapping[str, Any]]) -> np.ndarray:
         value = candidate.get("camera_matrix")
         if value is None:
             value = candidate.get("K")
-        if value is None:
-            continue
-        matrix = np.asarray(value, dtype=np.float64)
-        if matrix.shape != (3, 3):
-            raise CalibrationFormatError(f"Expected camera_matrix shape (3, 3), got {matrix.shape}.")
-        return matrix
+        if value is not None:
+            matrix = np.asarray(value, dtype=np.float64)
+            if matrix.shape != (3, 3):
+                raise CalibrationFormatError(f"Expected camera_matrix shape (3, 3), got {matrix.shape}.")
+            return matrix
+
+        matrix = _matrix_from_parameters(candidate)
+        if matrix is not None:
+            return matrix
     raise CalibrationFormatError("Missing camera_matrix in calibration export.")
 
 
@@ -196,7 +202,63 @@ def _first_distortion(candidates: list[Mapping[str, Any]]) -> np.ndarray:
             if coefficients.size == 0:
                 raise CalibrationFormatError("distortion_coefficients must not be empty.")
             return coefficients
+
+        named_coefficients = _distortion_from_parameters(candidate)
+        if named_coefficients is not None:
+            return named_coefficients
     raise CalibrationFormatError("Missing distortion_coefficients in calibration export.")
+
+
+def _matrix_from_parameters(candidate: Mapping[str, Any]) -> np.ndarray | None:
+    parameters = candidate.get("parameters") or candidate.get("camera_parameters") or candidate.get("intrinsic_parameters")
+    if not isinstance(parameters, Mapping):
+        return None
+
+    fx = _float_from_mapping(parameters, "fx")
+    fy = _float_from_mapping(parameters, "fy")
+    cx = _float_from_mapping(parameters, "cx")
+    cy = _float_from_mapping(parameters, "cy")
+    if fx is None or fy is None or cx is None or cy is None:
+        return None
+
+    skew = _float_from_mapping(parameters, "skew") or 0.0
+    return np.asarray(
+        [
+            [fx, skew, cx],
+            [0.0, fy, cy],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
+
+
+def _distortion_from_parameters(candidate: Mapping[str, Any]) -> np.ndarray | None:
+    parameters = candidate.get("distortion_parameters")
+    if not isinstance(parameters, Mapping):
+        return None
+
+    order = _distortion_order(candidate, parameters)
+    if not order:
+        return None
+
+    coefficients = [
+        _float_from_mapping(parameters, label) if _float_from_mapping(parameters, label) is not None else 0.0
+        for label in order
+    ]
+    return np.asarray(coefficients, dtype=np.float64).reshape(-1, 1)
+
+
+def _distortion_order(candidate: Mapping[str, Any], parameters: Mapping[str, Any]) -> list[str]:
+    explicit_order = candidate.get("distortion_order")
+    if isinstance(explicit_order, (list, tuple)):
+        return [str(label) for label in explicit_order]
+
+    model_hint = str(candidate.get("camera_model") or candidate.get("model") or candidate.get("distortion_model") or "").lower()
+    known_order = _FISHEYE_DISTORTION_ORDER if "fisheye" in model_hint else _PINHOLE_DISTORTION_ORDER
+    present_indices = [index for index, label in enumerate(known_order) if label in parameters]
+    if not present_indices:
+        return [str(label) for label in parameters.keys()]
+    return list(known_order[: max(present_indices) + 1])
 
 
 def _normalize_camera_model(value: str | None) -> str:
