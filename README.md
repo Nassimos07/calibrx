@@ -246,17 +246,6 @@ Check the built distribution:
 python -m twine check dist/*
 ```
 
-## Publishing Checklist
-
-1. Create the public GitHub repository.
-2. Push this repository.
-3. Create a PyPI project for `calibrx` or configure trusted publishing.
-4. Build locally with `python -m build`.
-5. Validate with `python -m twine check dist/*`.
-6. Publish to TestPyPI first.
-7. Install from TestPyPI in a clean environment and run a real undistortion.
-8. Publish to PyPI.
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
