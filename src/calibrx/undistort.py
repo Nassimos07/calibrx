@@ -8,11 +8,22 @@ from typing import Any
 import cv2
 import numpy as np
 
+from calibrx._opencv import undistort_fisheye_image, undistort_pinhole_image
 from calibrx.calibration import Calibration, ensure_calibration
 
 
 @dataclass(frozen=True)
 class UndistortResult:
+    """Result returned by :func:`calibrx.undistort`.
+
+    Attributes:
+        image: Undistorted OpenCV/Numpy image array.
+        camera_matrix: New camera matrix used for the output image.
+        roi: OpenCV valid-pixel ROI for pinhole models. Fisheye outputs use
+            `None` because OpenCV's fisheye path does not return an ROI.
+        output_path: Written file path when `output_path` was provided.
+    """
+
     image: np.ndarray
     camera_matrix: np.ndarray
     roi: tuple[int, int, int, int] | None = None
@@ -27,7 +38,7 @@ def undistort(
     balance: float | None = None,
     fov_scale: float | None = None,
 ) -> UndistortResult:
-    """Apply a CalibrX export using the same `calibrx-core` functions as the app.
+    """Apply a CalibrX export to an image.
 
     `image` can be either an OpenCV/Numpy image array or a file path. When
     `output_path` is provided, the undistorted image is also written to disk.
@@ -40,7 +51,7 @@ def undistort(
     resolved_balance = parsed.balance if balance is None else float(balance)
     resolved_fov_scale = parsed.fov_scale if fov_scale is None else float(fov_scale)
 
-    output, new_camera_matrix, roi = _run_core_undistort(
+    output, new_camera_matrix, roi = _run_undistort(
         source_image,
         parsed,
         balance=resolved_balance,
@@ -89,78 +100,32 @@ def undistort_file(
     return result.output_path
 
 
-def _run_core_undistort(
+def _run_undistort(
     image: np.ndarray,
     calibration: Calibration,
     *,
     balance: float,
     fov_scale: float,
 ) -> tuple[np.ndarray, np.ndarray, tuple[int, int, int, int] | None]:
-    core_calibration = calibration.to_core_calibration()
-    pattern_type = (calibration.pattern_type or "chessboard").lower()
-
     if calibration.camera_model == "fisheye":
-        if "image_size" not in core_calibration:
-            height, width = image.shape[:2]
-            core_calibration["image_size"] = (width, height)
-
-        if pattern_type == "charuco":
-            from camcalib.fisheye.charuco.undistort import undistort_fisheye_charuco_image
-
-            output, new_camera_matrix = undistort_fisheye_charuco_image(
-                image,
-                core_calibration,
-                balance=balance,
-                fov_scale=fov_scale,
-            )
-        else:
-            from camcalib.fisheye.chessboard.undistort import undistort_fisheye_chessboard_image
-
-            output, new_camera_matrix = undistort_fisheye_chessboard_image(
-                image,
-                core_calibration,
-                balance=balance,
-                fov_scale=fov_scale,
-            )
+        output, new_camera_matrix = undistort_fisheye_image(
+            image,
+            calibration.K,
+            calibration.D,
+            calibration_image_size=calibration.image_size,
+            balance=balance,
+            fov_scale=fov_scale,
+        )
         return output, new_camera_matrix, None
 
-    if calibration.camera_model == "pinhole":
-        if pattern_type == "charuco":
-            from camcalib.pinhole.charuco.undistort import undistort_pinhole_charuco_image
-
-            output, new_camera_matrix, roi = undistort_pinhole_charuco_image(
-                image,
-                core_calibration,
-                balance=balance,
-            )
-        else:
-            from camcalib.pinhole.chessboard.undistort import undistort_pinhole_chessboard_image
-
-            output, new_camera_matrix, roi = undistort_pinhole_chessboard_image(
-                image,
-                core_calibration,
-                balance=balance,
-            )
-        return output, new_camera_matrix, tuple(int(value) for value in roi)
-
-    if calibration.camera_model == "pinhole_wide":
-        if pattern_type == "charuco":
-            from camcalib.pinhole_wide.charuco.undistort import undistort_pinhole_charuco_image
-
-            output, new_camera_matrix, roi = undistort_pinhole_charuco_image(
-                image,
-                core_calibration,
-                balance=balance,
-            )
-        else:
-            from camcalib.pinhole_wide.chessboard.undistort import undistort_pinhole_chessboard_image
-
-            output, new_camera_matrix, roi = undistort_pinhole_chessboard_image(
-                image,
-                core_calibration,
-                balance=balance,
-            )
-        return output, new_camera_matrix, tuple(int(value) for value in roi)
+    if calibration.camera_model in {"pinhole", "pinhole_wide"}:
+        output, new_camera_matrix, roi = undistort_pinhole_image(
+            image,
+            calibration.K,
+            calibration.D,
+            balance=balance,
+        )
+        return output, new_camera_matrix, roi
 
     raise ValueError(f"Unsupported camera_model {calibration.camera_model!r}.")
 

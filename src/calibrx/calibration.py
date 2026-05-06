@@ -9,9 +9,7 @@ from typing import Any
 import numpy as np
 import yaml
 
-
-class CalibrationFormatError(ValueError):
-    """Raised when a CalibrX calibration export cannot be parsed."""
+from calibrx.exceptions import CalibrationFormatError
 
 
 _MODEL_ALIASES = {
@@ -103,8 +101,8 @@ class Calibration:
             raw=payload,
         )
 
-    def to_core_calibration(self) -> dict[str, Any]:
-        """Return the calibration dictionary expected by `calibrx-core`."""
+    def to_opencv_dict(self) -> dict[str, Any]:
+        """Return an OpenCV-ready calibration dictionary."""
 
         payload: dict[str, Any] = {
             "camera_model": self.camera_model,

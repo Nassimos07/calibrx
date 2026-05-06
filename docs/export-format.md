@@ -33,7 +33,7 @@ The SDK primarily consumes the app-level export downloaded from CalibrX:
     }
   },
   "undistortion": {
-    "engine": "calibrx-core",
+    "engine": "opencv",
     "balance": 0.5,
     "fov_scale": 1.0
   },
@@ -74,7 +74,7 @@ Rectified exports keep the same shape and store the tuned values in
     }
   },
   "undistortion": {
-    "engine": "calibrx-core",
+    "engine": "opencv",
     "balance": 0.5,
     "fov_scale": 1.0
   }

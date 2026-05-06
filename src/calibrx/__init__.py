@@ -2,8 +2,12 @@
 
 from calibrx.calibration import (
     Calibration,
-    CalibrationFormatError,
     load_calibration,
+)
+from calibrx.exceptions import (
+    CalibrationFormatError,
+    CalibrXError,
+    UndistortionError,
 )
 from calibrx.undistort import (
     UndistortResult,
@@ -15,7 +19,9 @@ from calibrx.undistort import (
 __all__ = [
     "Calibration",
     "CalibrationFormatError",
+    "CalibrXError",
     "UndistortResult",
+    "UndistortionError",
     "load_calibration",
     "undistort",
     "undistort_file",

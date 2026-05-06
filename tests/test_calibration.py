@@ -83,7 +83,7 @@ def test_loads_named_intrinsics_without_matrix_or_vector():
     assert calibration.D.reshape(-1).tolist() == pytest.approx([0.1, -0.02, 0.001, 0.002, 0.0, 0.01, -0.01, 0.002])
 
 
-def test_loads_raw_core_payload_shape():
+def test_loads_raw_payload_shape():
     calibration = Calibration.from_dict(
         {
             "camera_model": "fisheye",
