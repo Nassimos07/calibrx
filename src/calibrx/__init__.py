@@ -1,11 +1,11 @@
-"""CamCal SDK public API."""
+"""CalibrX SDK public API."""
 
-from camcal_sdk.calibration import (
+from calibrx.calibration import (
     Calibration,
     CalibrationFormatError,
     load_calibration,
 )
-from camcal_sdk.undistort import (
+from calibrx.undistort import (
     UndistortResult,
     undistort,
     undistort_file,

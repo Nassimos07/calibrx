@@ -8,7 +8,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from camcal_sdk.calibration import Calibration, ensure_calibration
+from calibrx.calibration import Calibration, ensure_calibration
 
 
 @dataclass(frozen=True)
@@ -27,7 +27,7 @@ def undistort(
     balance: float | None = None,
     fov_scale: float | None = None,
 ) -> UndistortResult:
-    """Apply a CamCal export using the same `camcal-core` functions as the app.
+    """Apply a CalibrX export using the same `calibrx-core` functions as the app.
 
     `image` can be either an OpenCV/Numpy image array or a file path. When
     `output_path` is provided, the undistorted image is also written to disk.

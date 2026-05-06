@@ -1,10 +1,10 @@
-# CamCal Export Format
+# CalibrX Export Format
 
-The SDK primarily consumes the app-level export downloaded from CamCal:
+The SDK primarily consumes the app-level export downloaded from CalibrX:
 
 ```json
 {
-  "format": "camcal.calibration",
+  "format": "calibrx.calibration",
   "version": 1,
   "camera_model": "pinhole_wide",
   "pattern_type": "chessboard",
@@ -14,7 +14,7 @@ The SDK primarily consumes the app-level export downloaded from CamCal:
     "distortion_coefficients": [...]
   },
   "undistortion": {
-    "engine": "camcal-core",
+    "engine": "calibrx-core",
     "balance": 0.5,
     "fov_scale": 1.0
   },
@@ -31,7 +31,7 @@ Rectified exports keep the same shape and store the tuned values in
 
 ```json
 {
-  "format": "camcal.calibration",
+  "format": "calibrx.calibration",
   "version": 1,
   "camera_model": "fisheye",
   "image_size": [1920, 1080],
@@ -40,7 +40,7 @@ Rectified exports keep the same shape and store the tuned values in
     "distortion_coefficients": [...]
   },
   "undistortion": {
-    "engine": "camcal-core",
+    "engine": "calibrx-core",
     "balance": 0.5,
     "fov_scale": 1.0
   }
@@ -48,5 +48,5 @@ Rectified exports keep the same shape and store the tuned values in
 ```
 
 When `balance` or `fov_scale` are not provided by the caller, the SDK uses the
-values saved in `undistortion`. Otherwise, it falls back to CamCal defaults:
+values saved in `undistortion`. Otherwise, it falls back to CalibrX defaults:
 `balance=0.5` and `fov_scale=1.0`.

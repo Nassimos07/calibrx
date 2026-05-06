@@ -11,7 +11,7 @@ import yaml
 
 
 class CalibrationFormatError(ValueError):
-    """Raised when a CamCal calibration export cannot be parsed."""
+    """Raised when a CalibrX calibration export cannot be parsed."""
 
 
 _MODEL_ALIASES = {
@@ -25,7 +25,7 @@ _MODEL_ALIASES = {
 
 @dataclass(frozen=True)
 class Calibration:
-    """Parsed CamCal calibration export.
+    """Parsed CalibrX calibration export.
 
     The class keeps the OpenCV-ready arrays (`camera_matrix`,
     `distortion_coefficients`) alongside the original export metadata.
@@ -101,7 +101,7 @@ class Calibration:
         )
 
     def to_core_calibration(self) -> dict[str, Any]:
-        """Return the calibration dictionary expected by `camcal-core`."""
+        """Return the calibration dictionary expected by `calibrx-core`."""
 
         payload: dict[str, Any] = {
             "camera_model": self.camera_model,
@@ -126,7 +126,7 @@ class Calibration:
 
 
 def load_calibration(path: str | Path) -> Calibration:
-    """Load a CamCal `calibration.json` or `rectified_calibration.json` export."""
+    """Load a CalibrX `calibration.json` or `rectified_calibration.json` export."""
 
     return Calibration.from_file(path)
 

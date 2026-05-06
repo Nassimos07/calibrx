@@ -1,6 +1,6 @@
 import numpy as np
 
-from camcal_sdk import Calibration, undistort
+from calibrx import Calibration, undistort
 
 
 def test_pinhole_identity_like_calibration_returns_same_shape():

@@ -3,14 +3,14 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "camcal-sdk"
+name = "calibrx"
 version = "0.1.0"
-description = "Python SDK for applying CamCal calibration exports to undistort images."
+description = "Python SDK for applying CalibrX calibration exports to undistort images."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [
-  { name = "CamCal" }
+  { name = "CalibrX" }
 ]
 keywords = [
   "camera-calibration",
@@ -34,7 +34,7 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules"
 ]
 dependencies = [
-  "camcal-core>=0.1.0",
+  "calibrx-core>=0.1.0",
   "PyYAML>=6.0"
 ]
 
@@ -46,10 +46,10 @@ dev = [
 ]
 
 [project.scripts]
-camcal-undistort = "camcal_sdk.cli:main"
+calibrx = "calibrx.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/camcal_sdk"]
+packages = ["src/calibrx"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

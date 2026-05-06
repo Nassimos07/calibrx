@@ -1,29 +1,29 @@
-# CamCal SDK
+# CalibrX
 
-Python SDK for applying CamCal calibration exports locally. Users download
+Python SDK for applying CalibrX calibration exports locally. Users download
 `calibration.json`, `calibration.yaml`, `rectified_calibration.json`, or
-`rectified_calibration.yaml` from CamCal and call one undistortion function.
+`rectified_calibration.yaml` from CalibrX and call one undistortion function.
 
-The SDK delegates undistortion to `camcal-core`, the same engine used by the
-CamCal backend, so local results follow the platform implementation.
+The SDK delegates undistortion to `calibrx-core`, the same engine used by the
+CalibrX backend, so local results follow the platform implementation.
 
 ## Install
 
 ```bash
-pip install camcal-sdk
+pip install calibrx
 ```
 
 For local development:
 
 ```bash
-python -m pip install -e ../camcal-core
+python -m pip install -e ../camcal-core  # local source for calibrx-core
 python -m pip install -e ".[dev]"
 ```
 
 ## Python usage
 
 ```python
-from camcal_sdk import undistort_file
+from calibrx import undistort_file
 
 undistort_file(
     "input.jpg",
@@ -46,7 +46,7 @@ For in-memory OpenCV/Numpy workflows:
 
 ```python
 import cv2
-from camcal_sdk import load_calibration, undistort
+from calibrx import load_calibration, undistort
 
 image = cv2.imread("input.jpg")
 calibration = load_calibration("calibration.json")
@@ -59,24 +59,24 @@ print(result.camera_matrix)
 ## CLI usage
 
 ```bash
-camcal-undistort input.jpg calibration.json output.jpg --balance 0.5
+calibrx undistort input.jpg calibration.json output.jpg --balance 0.5
 ```
 
 For fisheye calibrations:
 
 ```bash
-camcal-undistort input.jpg calibration.json output.jpg --balance 0.5 --fov-scale 1.0
+calibrx undistort input.jpg calibration.json output.jpg --balance 0.5 --fov-scale 1.0
 ```
 
 Batch a directory:
 
 ```bash
-camcal-undistort ./frames calibration.json ./undistorted --glob "*.jpg"
+calibrx undistort ./frames calibration.json ./undistorted --glob "*.jpg"
 ```
 
 ## Supported exports
 
-The SDK supports the CamCal app exports:
+The SDK supports the CalibrX app exports:
 
 - `calibration.json`
 - `calibration.yaml`
@@ -84,7 +84,7 @@ The SDK supports the CamCal app exports:
 - `rectified_calibration.yaml`
 
 It also accepts the older flat export shape and the deeper raw calibration
-payload shape produced by `camcal-core`, as long as camera intrinsics are
+payload shape produced by `calibrx-core`, as long as camera intrinsics are
 present.
 
 Supported camera models:
@@ -97,7 +97,7 @@ Supported camera models:
 
 This repo is ready for public GitHub + PyPI:
 
-1. Create a public GitHub repository named `camcal-sdk`.
+1. Create a public GitHub repository named `calibrx`.
 2. Push this local repo to it.
 3. Configure PyPI trusted publishing for the GitHub release workflow.
 4. Create a GitHub release tag like `v0.1.0`.

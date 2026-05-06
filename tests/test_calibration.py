@@ -1,13 +1,13 @@
 import numpy as np
 import pytest
 
-from camcal_sdk import Calibration, CalibrationFormatError
+from calibrx import Calibration, CalibrationFormatError
 
 
 def test_loads_app_export_shape():
     calibration = Calibration.from_dict(
         {
-            "format": "camcal.calibration",
+            "format": "calibrx.calibration",
             "version": 1,
             "camera_model": "pinhole_wide",
             "image_size": [1920, 1080],
