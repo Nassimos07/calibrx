@@ -1,16 +1,28 @@
 <p align="center">
-  <img src="docs/assets/calibrx-sdk-banner.svg" alt="CalibrX SDK">
+  <img src="docs/assets/github_banner.jpg" alt="CalibrX SDK">
 </p>
+
+<div align="center">
+
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](#install)
+[![Status](https://img.shields.io/badge/Status-Active-success.svg)](#features)
+[![OpenCV](https://img.shields.io/badge/OpenCV-4.8%2B-5C3EE8.svg)](#features)
+[![NumPy](https://img.shields.io/badge/NumPy-1.24%2B-013243.svg)](#features)
+[![CLI](https://img.shields.io/badge/CLI-calibrx-orange.svg)](#cli-usage)
+[![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)](#license)
+
+</div>
 
 # CalibrX
 
-CalibrX is a small Python SDK for applying calibration exports outside the
-CalibrX platform. Load a `calibration.json`, `calibration.yaml`,
-`rectified_calibration.json`, or `rectified_calibration.yaml`, then undistort
-images with one Python function or one CLI command.
+The official Python SDK for the [calibrx.io](https://calibrx.io) camera
+calibration platform.
 
-The SDK is self-contained. It includes the minimal OpenCV logic required for
-CalibrX exports and does not depend on the CalibrX backend or core repository.
+Use CalibrX to bring platform-generated calibration results into your local
+computer vision workflows. Export a calibration from calibrx.io, load it in
+Python, and apply the same camera model, distortion coefficients, and
+undistortion settings in scripts, notebooks, production pipelines, or command
+line tools.
 
 ## Features
 
@@ -25,15 +37,6 @@ CalibrX exports and does not depend on the CalibrX backend or core repository.
 
 ```bash
 pip install calibrx
-```
-
-For local development from this repository:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
 ```
 
 ## Quick Start
@@ -188,7 +191,7 @@ The CLI prints every output path it writes.
 
 ## Supported Exports
 
-The SDK supports the CalibrX app exports:
+The SDK supports calibration exports from calibrx.io:
 
 - `calibration.json`
 - `calibration.yaml`
@@ -204,18 +207,38 @@ It expects OpenCV-ready intrinsics:
 
 See [docs/export-format.md](docs/export-format.md) for the full schema.
 
-## Local Verification
+## Development
 
-Run a fast import and smoke test:
+For local development from this repository:
 
 ```bash
-PYTHONPATH=$PWD/src python - <<'PY'
-import sys
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
+
+Run the test suite:
+
+```bash
+python -m pytest
+```
+
+Build and validate the package:
+
+```bash
+python -m build
+python -m twine check dist/*
+```
+
+Run a quick local smoke test:
+
+```bash
+python - <<'PY'
 import numpy as np
 from calibrx import Calibration, undistort
 
 print("calibrx import ok")
-print("camcalib loaded:", any(name.startswith("camcalib") for name in sys.modules))
 
 image = np.zeros((32, 48, 3), dtype=np.uint8)
 calibration = Calibration.from_dict({
@@ -230,24 +253,6 @@ result = undistort(image, calibration)
 print(result.image.shape)
 print(result.camera_matrix.shape)
 PY
-```
-
-Run tests:
-
-```bash
-python -m pytest
-```
-
-Build the package:
-
-```bash
-python -m build
-```
-
-Check the built distribution:
-
-```bash
-python -m twine check dist/*
 ```
 
 ## License
