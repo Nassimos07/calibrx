@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/calibrx-sdk-banner.svg" alt="CalibrX SDK">
+</p>
+
 # CalibrX
 
 CalibrX is a small Python SDK for applying calibration exports outside the
